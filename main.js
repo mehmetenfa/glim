@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage, powerMonitor } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,7 +10,8 @@ const MODES = [
   { id: 'fireflies', label: 'Ateş böcekleri' },
   { id: 'rain', label: 'Yağmur' },
 ];
-const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85 };
+const IDLE_OPTIONS = [0, 5, 10, 15, 30]; // dakika; 0 = kapalı
+const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15 };
 
 let wins = [];
 let tray = null;
@@ -100,6 +101,15 @@ function buildTrayMenu() {
       enabled: settings.mode !== 'clock',
       click: (item) => update({ showClock: item.checked }),
     },
+    {
+      label: 'Boşta kalınca otomatik başlat',
+      submenu: IDLE_OPTIONS.map((m) => ({
+        label: m ? `${m} dakika` : 'Kapalı',
+        type: 'radio',
+        checked: settings.idleMinutes === m,
+        click: () => update({ idleMinutes: m }),
+      })),
+    },
     { type: 'separator' },
     { label: 'Çık', role: 'quit' },
   ]);
@@ -112,8 +122,8 @@ app.whenReady().then(() => {
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true });
 
   if (process.platform === 'darwin') {
-    tray = new Tray(nativeImage.createEmpty());
-    tray.setTitle('◐');
+    // "Template" ile biten dosya adı macOS'ta açık/koyu menü çubuğuna göre otomatik renklenir.
+    tray = new Tray(path.join(__dirname, 'build', 'trayTemplate.png'));
   } else {
     const icon = nativeImage.createFromPath(path.join(__dirname, 'build', 'icon.png')).resize({ width: 32, height: 32 });
     tray = new Tray(icon);
@@ -124,6 +134,13 @@ app.whenReady().then(() => {
   if (!globalShortcut.register(SHORTCUT, toggleOverlay)) {
     console.error(`Kısayol kaydedilemedi: ${SHORTCUT}`);
   }
+
+  // Bilgisayar ayarlanan süre boyunca kullanılmazsa okuma modunu aç.
+  // Mod açıkken tekrar tetiklenmez; kapatınca kullanıcı etkin olduğu için sayaç sıfırlanır.
+  setInterval(() => {
+    if (wins.length || !settings.idleMinutes) return;
+    if (powerMonitor.getSystemIdleTime() >= settings.idleMinutes * 60) openOverlay();
+  }, 10000);
 
   ipcMain.on('close', closeOverlay);
   ipcMain.on('update', (_e, patch) => update(patch));

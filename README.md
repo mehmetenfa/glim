@@ -39,7 +39,7 @@ Glim menü çubuğunda (macOS) veya sistem tepsisinde (Windows) çalışır ve g
 | `↑` / `↓` | Parlaklık |
 | `Esc` veya tıklama | Kapat |
 
-Renkler sıcak ve düşük kontrastlıdır, mavi ışık kullanılmaz. Birden fazla monitörde hepsini birlikte kaplar.
+Bilgisayar 15 dakika kullanılmazsa okuma modu kendiliğinden açılır (menüden 5/10/30 dakikaya ya da kapalıya alınabilir). Renkler sıcak ve düşük kontrastlıdır, mavi ışık kullanılmaz. Birden fazla monitörde hepsini birlikte kaplar.
 
 ## Geliştirme
 
@@ -56,7 +56,7 @@ npm version patch   # ya da minor / major
 git push --follow-tags
 ```
 
-`v*` etiketi gönderilince GitHub Actions macOS ve Windows paketlerini derler ve Releases sayfasına yükler.
+`v*` etiketi gönderilince GitHub Actions macOS ve Windows paketlerini derler ve tek bir sürüm olarak Releases sayfasına yükler.
 
 ## Lisans
 

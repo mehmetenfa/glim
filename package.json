@@ -30,7 +30,9 @@
       "main.js",
       "preload.js",
       "index.html",
-      "build/icon.png"
+      "build/icon.png",
+      "build/trayTemplate.png",
+      "build/trayTemplate@2x.png"
     ],
     "mac": {
       "target": [
@@ -69,11 +71,6 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "mehmetenfa",
-      "repo": "glim"
     },
     "artifactName": "Glim-${version}-${os}-${arch}.${ext}"
   }
