@@ -1,6 +1,6 @@
 {
   "name": "glim",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Glim: okurken gözü kaydırmayan, sakin ekran koruyucu (saat ve yumuşak animasyonlar)",
   "main": "main.js",
   "scripts": {
