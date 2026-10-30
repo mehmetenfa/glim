@@ -18,6 +18,7 @@ const MODES = [
 const IDLE_OPTIONS = [0, 5, 10, 15, 30]; // dakika; 0 = kapalı
 const FADE_IN_MS = 1100; // perde çekilirken
 const FADE_OUT_MS = 700; // perde kalkarken
+const AWAKE_AFTER_LOCK_MAX_MS = 60 * 60 * 1000; // kilitten sonra en fazla 1 saat uyanık tut
 const LOCK_INSTANT = -1;
 const LOCK_OPTIONS = [0, LOCK_INSTANT, 1, 2, 5, 10, 15, 30]; // çekildikten kaç dk sonra kilitlensin; 0 = kapalı, -1 = anında
 const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15, keepAwake: true, lockMinutes: 5 };
@@ -27,6 +28,8 @@ let blockerId = null;
 let lockTimer = null;
 let openedAt = 0;
 let closing = false;
+let awakeAfterLock = false;
+let awakeTimer = null;
 let idleArmed = true; // kilitten sonra kullanıcı etkinleşmeden perde tekrar çekilmesin
 let tray = null;
 let settings = { ...DEFAULTS };
@@ -107,7 +110,7 @@ function openOverlay() {
 
 // Perde çekiliyken (ve ayar açıksa) ekran ve sistem uykuya geçmesin.
 function syncSleepBlocker() {
-  const want = wins.length > 0 && settings.keepAwake;
+  const want = (wins.length > 0 || awakeAfterLock) && settings.keepAwake;
   if (want && blockerId === null) blockerId = powerSaveBlocker.start('prevent-display-sleep');
   if (!want && blockerId !== null) {
     powerSaveBlocker.stop(blockerId);
@@ -121,9 +124,34 @@ $.NSBundle.bundleWithPath('/System/Library/PrivateFrameworks/login.framework').l
 ObjC.bindFunction('SACLockScreenImmediate', ['int', []]);
 $.SACLockScreenImmediate();`;
 
+function logLock(msg) {
+  try {
+    fs.appendFileSync(path.join(app.getPath('userData'), 'lock.log'), `${new Date().toISOString()} ${msg}\n`);
+  } catch {}
+}
+
+// Kilitten sonra ekran ve sistem uyanık kalsın (kilit ekranı görünsün); açılınca ya da süre dolunca bırak.
+function holdAwakeAfterLock() {
+  awakeAfterLock = true;
+  syncSleepBlocker();
+  clearTimeout(awakeTimer);
+  awakeTimer = setTimeout(releaseAwakeAfterLock, AWAKE_AFTER_LOCK_MAX_MS);
+  // Kilit komutu ekranı kapattıysa kullanıcı etkinliği bildirerek uyandır.
+  if (process.platform === 'darwin') setTimeout(() => execFile('caffeinate', ['-u', '-t', '3']), 1500);
+}
+
+function releaseAwakeAfterLock() {
+  clearTimeout(awakeTimer);
+  awakeAfterLock = false;
+  syncSleepBlocker();
+}
+
 function lockScreen() {
+  logLock(`kilitleniyor (${process.platform})`);
+  holdAwakeAfterLock();
   if (process.platform === 'darwin') {
-    execFile('osascript', ['-l', 'JavaScript', '-e', MAC_LOCK_JXA], (err) => {
+    execFile('osascript', ['-l', 'JavaScript', '-e', MAC_LOCK_JXA], (err, stdout, stderr) => {
+      logLock(`osascript bitti: hata=${err ? err.message : 'yok'} cikti=${String(stdout).trim()} ${String(stderr).trim()}`);
       if (err) execFile('pmset', ['displaysleepnow']); // yedek: ekranı uyut
     });
   } else if (process.platform === 'win32') {
@@ -248,6 +276,8 @@ app.whenReady().then(() => {
     if (wins.length || !idleArmed || !settings.idleMinutes) return;
     if (idle >= settings.idleMinutes * 60) openOverlay();
   }, 10000);
+
+  powerMonitor.on('unlock-screen', releaseAwakeAfterLock);
 
   ipcMain.on('close', closeOverlay);
   ipcMain.on('update', (_e, patch) => update(patch));
