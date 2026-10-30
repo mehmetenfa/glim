@@ -1,6 +1,6 @@
 # Glim
 
-Okurken gözü ekrana kaydırmayan sakin bir ekran koruyucu. Kısayolla açarsın, tüm ekranları koyu bir zeminle kaplar; saat ya da göz yormayan yumuşak bir animasyon gösterir. Tıklayınca kapanır.
+Okurken gözü ekrana kaydırmayan sakin bir ekran koruyucu. Kısayolla "perdeyi çekersin": tüm ekranları koyu bir zeminle kaplar; saat ya da göz yormayan yumuşak bir animasyon gösterir. Tıklayınca perde kalkar. Okurken de, ekran koruyucu olarak da kullanılır.
 
 *A calm, eye-friendly screensaver you toggle on while reading. It covers every display with a dark warm-toned scene (clock or a soft animation). Click to dismiss.*
 
@@ -33,13 +33,17 @@ Glim menü çubuğunda (macOS) veya sistem tepsisinde (Windows) çalışır ve g
 
 | Tuş | İşlev |
 | --- | --- |
-| `Cmd/Ctrl + Shift + R` | Okuma modunu aç / kapat |
+| `Cmd/Ctrl + Shift + R` | Perdeyi çek / kaldır |
 | `1`–`9` | Mod seç: saat, nefes, aurora, ateş böcekleri, yağmur, küre, yıldızlar, dalgalar, közler |
 | `C` | Animasyonun üstünde saati aç / kapat |
 | `↑` / `↓` | Parlaklık |
-| `Esc` veya tıklama | Kapat |
+| `Esc` veya tıklama | Perdeyi kaldır |
 
-Bilgisayar 15 dakika kullanılmazsa okuma modu kendiliğinden açılır (menüden 5/10/30 dakikaya ya da kapalıya alınabilir). Okuma modu açıldıktan 5 dakika sonra ekran kilitlenir (menüden 1/2/10/15/30 dakikaya ya da kapalıya alınabilir). Okuma modu açıkken bilgisayar uykuya geçmez (menüden kapatılabilir). Renkler sıcak ve düşük kontrastlıdır, mavi ışık kullanılmaz. Birden fazla monitörde hepsini birlikte kaplar.
+- Bilgisayar 15 dakika kullanılmazsa perde kendiliğinden çekilir (menüden 5/10/30 dakikaya ya da kapalıya alınabilir).
+- Perde çekildikten sonra ekran kilitlenebilir: anında, 1/2/5/10/15/30 dakika sonra ya da hiç (varsayılan 5 dakika).
+- Perde çekiliyken bilgisayar uykuya geçmez (menüden kapatılabilir).
+
+Renkler sıcak ve düşük kontrastlıdır, mavi ışık kullanılmaz. Birden fazla monitörde hepsini birlikte kaplar.
 
 ## Geliştirme
 

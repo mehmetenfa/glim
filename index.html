@@ -27,7 +27,7 @@
 <canvas id="c"></canvas>
 <div id="clock"></div>
 <div id="veil"></div>
-<div id="hint">1–9 mod · C saat · ↑↓ parlaklık · Esc kapat</div>
+<div id="hint">1–9 mod · C saat · ↑↓ parlaklık · Esc perdeyi kaldır</div>
 <script>
 const MODES = ['clock', 'breath', 'aurora', 'fireflies', 'rain', 'sphere', 'stars', 'waves', 'embers'];
 const canvas = document.getElementById('c');
@@ -208,7 +208,7 @@ function apply(s) {
   tickClock();
 }
 
-okuma.onSettings(apply);
+glim.onSettings(apply);
 
 let hintTimer;
 function showHint() {
@@ -219,15 +219,15 @@ function showHint() {
 showHint();
 
 addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') return okuma.close();
+  if (e.key === 'Escape') return glim.close();
   const n = Number(e.key);
-  if (n >= 1 && n <= MODES.length) okuma.update({ mode: MODES[n - 1] });
-  else if (e.key.toLowerCase() === 'c') okuma.update({ showClock: !settings.showClock });
-  else if (e.key === 'ArrowUp') okuma.update({ dim: Math.min(1, +(settings.dim + 0.05).toFixed(2)) });
-  else if (e.key === 'ArrowDown') okuma.update({ dim: Math.max(0.2, +(settings.dim - 0.05).toFixed(2)) });
+  if (n >= 1 && n <= MODES.length) glim.update({ mode: MODES[n - 1] });
+  else if (e.key.toLowerCase() === 'c') glim.update({ showClock: !settings.showClock });
+  else if (e.key === 'ArrowUp') glim.update({ dim: Math.min(1, +(settings.dim + 0.05).toFixed(2)) });
+  else if (e.key === 'ArrowDown') glim.update({ dim: Math.max(0.2, +(settings.dim - 0.05).toFixed(2)) });
   showHint();
 });
-addEventListener('click', () => okuma.close());
+addEventListener('click', () => glim.close());
 </script>
 </body>
 </html>

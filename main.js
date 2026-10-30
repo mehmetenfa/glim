@@ -16,14 +16,15 @@ const MODES = [
   { id: 'embers', label: 'Közler' },
 ];
 const IDLE_OPTIONS = [0, 5, 10, 15, 30]; // dakika; 0 = kapalı
-const LOCK_OPTIONS = [0, 1, 2, 5, 10, 15, 30]; // okuma modu açıldıktan kaç dk sonra kilitlensin; 0 = kapalı
+const LOCK_INSTANT = -1;
+const LOCK_OPTIONS = [0, LOCK_INSTANT, 1, 2, 5, 10, 15, 30]; // çekildikten kaç dk sonra kilitlensin; 0 = kapalı, -1 = anında
 const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15, keepAwake: true, lockMinutes: 5 };
 
 let wins = [];
 let blockerId = null;
 let lockTimer = null;
 let openedAt = 0;
-let idleArmed = true; // kilitten sonra kullanıcı etkinleşmeden okuma modu tekrar açılmasın
+let idleArmed = true; // kilitten sonra kullanıcı etkinleşmeden perde tekrar çekilmesin
 let tray = null;
 let settings = { ...DEFAULTS };
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
@@ -82,7 +83,7 @@ function openOverlay() {
   buildTrayMenu();
 }
 
-// Okuma modu açıkken (ve ayar açıksa) ekran ve sistem uykuya geçmesin.
+// Perde çekiliyken (ve ayar açıksa) ekran ve sistem uykuya geçmesin.
 function syncSleepBlocker() {
   const want = wins.length > 0 && settings.keepAwake;
   if (want && blockerId === null) blockerId = powerSaveBlocker.start('prevent-display-sleep');
@@ -110,12 +111,13 @@ function lockScreen() {
   }
 }
 
-// Okuma modu açıldıktan lockMinutes dk sonra ekranı kilitle ve modu kapat.
+// Perde çekildikten lockMinutes dk sonra ekranı kilitle ve perdeyi kaldır.
 function syncLockTimer() {
   clearTimeout(lockTimer);
   lockTimer = null;
   if (!wins.length || !settings.lockMinutes) return;
-  const wait = openedAt + settings.lockMinutes * 60000 - Date.now();
+  // Anında: ekran bir an belirsin diye kısa bir gecikmeyle kilitle.
+  const wait = settings.lockMinutes === LOCK_INSTANT ? 600 : openedAt + settings.lockMinutes * 60000 - Date.now();
   if (wait <= 0) return;
   lockTimer = setTimeout(() => {
     idleArmed = false;
@@ -144,7 +146,7 @@ function update(patch) {
 function buildTrayMenu() {
   if (!tray) return;
   const menu = Menu.buildFromTemplate([
-    { label: wins.length ? 'Okuma modunu kapat' : 'Okuma modunu aç', accelerator: SHORTCUT, click: toggleOverlay },
+    { label: wins.length ? 'Perdeyi kaldır' : 'Perdeyi çek', accelerator: SHORTCUT, click: toggleOverlay },
     { type: 'separator' },
     ...MODES.map((m) => ({
       label: m.label,
@@ -161,13 +163,13 @@ function buildTrayMenu() {
       click: (item) => update({ showClock: item.checked }),
     },
     {
-      label: 'Açıkken bilgisayar uykuya geçmesin',
+      label: 'Perde çekiliyken bilgisayar uykuya geçmesin',
       type: 'checkbox',
       checked: settings.keepAwake,
       click: (item) => update({ keepAwake: item.checked }),
     },
     {
-      label: 'Boşta kalınca otomatik başlat',
+      label: 'Boşta kalınca perdeyi çek',
       submenu: IDLE_OPTIONS.map((m) => ({
         label: m ? `${m} dakika` : 'Kapalı',
         type: 'radio',
@@ -176,9 +178,9 @@ function buildTrayMenu() {
       })),
     },
     {
-      label: 'Okuma modundan sonra ekranı kilitle',
+      label: 'Perde çekildikten sonra ekranı kilitle',
       submenu: LOCK_OPTIONS.map((m) => ({
-        label: m ? `${m} dakika sonra` : 'Kilitleme',
+        label: m === 0 ? 'Kilitleme' : m === LOCK_INSTANT ? 'Anında' : `${m} dakika sonra`,
         type: 'radio',
         checked: settings.lockMinutes === m,
         click: () => update({ lockMinutes: m }),
@@ -209,7 +211,7 @@ app.whenReady().then(() => {
     console.error(`Kısayol kaydedilemedi: ${SHORTCUT}`);
   }
 
-  // Bilgisayar ayarlanan süre boyunca kullanılmazsa okuma modunu aç.
+  // Bilgisayar ayarlanan süre boyunca kullanılmazsa perdeyi çek.
   // Mod açıkken tekrar tetiklenmez; kapatınca kullanıcı etkin olduğu için sayaç sıfırlanır.
   setInterval(() => {
     const idle = powerMonitor.getSystemIdleTime();
