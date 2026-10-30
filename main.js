@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage, powerMonitor, powerSaveBlocker } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,9 +11,10 @@ const MODES = [
   { id: 'rain', label: 'Yağmur' },
 ];
 const IDLE_OPTIONS = [0, 5, 10, 15, 30]; // dakika; 0 = kapalı
-const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15 };
+const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15, keepAwake: true };
 
 let wins = [];
+let blockerId = null;
 let tray = null;
 let settings = { ...DEFAULTS };
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
@@ -59,12 +60,24 @@ function openOverlay() {
     });
     w.on('closed', () => {
       wins = wins.filter((x) => x !== w);
+      syncSleepBlocker();
       closeOverlay();
       buildTrayMenu();
     });
     wins.push(w);
   }
+  syncSleepBlocker();
   buildTrayMenu();
+}
+
+// Okuma modu açıkken (ve ayar açıksa) ekran ve sistem uykuya geçmesin.
+function syncSleepBlocker() {
+  const want = wins.length > 0 && settings.keepAwake;
+  if (want && blockerId === null) blockerId = powerSaveBlocker.start('prevent-display-sleep');
+  if (!want && blockerId !== null) {
+    powerSaveBlocker.stop(blockerId);
+    blockerId = null;
+  }
 }
 
 function closeOverlay() {
@@ -78,6 +91,7 @@ function toggleOverlay() {
 function update(patch) {
   settings = { ...settings, ...patch };
   saveSettings();
+  syncSleepBlocker();
   for (const w of wins) w.webContents.send('settings', settings);
   buildTrayMenu();
 }
@@ -100,6 +114,12 @@ function buildTrayMenu() {
       checked: settings.showClock,
       enabled: settings.mode !== 'clock',
       click: (item) => update({ showClock: item.checked }),
+    },
+    {
+      label: 'Açıkken bilgisayar uykuya geçmesin',
+      type: 'checkbox',
+      checked: settings.keepAwake,
+      click: (item) => update({ keepAwake: item.checked }),
     },
     {
       label: 'Boşta kalınca otomatik başlat',

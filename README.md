@@ -39,7 +39,7 @@ Glim menü çubuğunda (macOS) veya sistem tepsisinde (Windows) çalışır ve g
 | `↑` / `↓` | Parlaklık |
 | `Esc` veya tıklama | Kapat |
 
-Bilgisayar 15 dakika kullanılmazsa okuma modu kendiliğinden açılır (menüden 5/10/30 dakikaya ya da kapalıya alınabilir). Renkler sıcak ve düşük kontrastlıdır, mavi ışık kullanılmaz. Birden fazla monitörde hepsini birlikte kaplar.
+Bilgisayar 15 dakika kullanılmazsa okuma modu kendiliğinden açılır (menüden 5/10/30 dakikaya ya da kapalıya alınabilir). Okuma modu açıkken bilgisayar uykuya geçmez (menüden kapatılabilir). Renkler sıcak ve düşük kontrastlıdır, mavi ışık kullanılmaz. Birden fazla monitörde hepsini birlikte kaplar.
 
 ## Geliştirme
 
