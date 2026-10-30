@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage, powerMonitor, powerSaveBlocker } = require('electron');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const path = require('path');
 
 const SHORTCUT = 'CommandOrControl+Shift+R';
@@ -15,10 +16,14 @@ const MODES = [
   { id: 'embers', label: 'Közler' },
 ];
 const IDLE_OPTIONS = [0, 5, 10, 15, 30]; // dakika; 0 = kapalı
-const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15, keepAwake: true };
+const LOCK_OPTIONS = [0, 1, 2, 5, 10, 15, 30]; // okuma modu açıldıktan kaç dk sonra kilitlensin; 0 = kapalı
+const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15, keepAwake: true, lockMinutes: 5 };
 
 let wins = [];
 let blockerId = null;
+let lockTimer = null;
+let openedAt = 0;
+let idleArmed = true; // kilitten sonra kullanıcı etkinleşmeden okuma modu tekrar açılmasın
 let tray = null;
 let settings = { ...DEFAULTS };
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
@@ -37,6 +42,7 @@ function saveSettings() {
 
 function openOverlay() {
   if (wins.length) return;
+  openedAt = Date.now();
   const cursorId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
   for (const display of screen.getAllDisplays()) {
     const w = new BrowserWindow({
@@ -65,12 +71,14 @@ function openOverlay() {
     w.on('closed', () => {
       wins = wins.filter((x) => x !== w);
       syncSleepBlocker();
+      syncLockTimer();
       closeOverlay();
       buildTrayMenu();
     });
     wins.push(w);
   }
   syncSleepBlocker();
+  syncLockTimer();
   buildTrayMenu();
 }
 
@@ -82,6 +90,38 @@ function syncSleepBlocker() {
     powerSaveBlocker.stop(blockerId);
     blockerId = null;
   }
+}
+
+const MAC_LOCK_JXA = `
+ObjC.import('Foundation');
+$.NSBundle.bundleWithPath('/System/Library/PrivateFrameworks/login.framework').load;
+ObjC.bindFunction('SACLockScreenImmediate', ['int', []]);
+$.SACLockScreenImmediate();`;
+
+function lockScreen() {
+  if (process.platform === 'darwin') {
+    execFile('osascript', ['-l', 'JavaScript', '-e', MAC_LOCK_JXA], (err) => {
+      if (err) execFile('pmset', ['displaysleepnow']); // yedek: ekranı uyut
+    });
+  } else if (process.platform === 'win32') {
+    execFile('rundll32.exe', ['user32.dll,LockWorkStation']);
+  } else {
+    execFile('loginctl', ['lock-session']);
+  }
+}
+
+// Okuma modu açıldıktan lockMinutes dk sonra ekranı kilitle ve modu kapat.
+function syncLockTimer() {
+  clearTimeout(lockTimer);
+  lockTimer = null;
+  if (!wins.length || !settings.lockMinutes) return;
+  const wait = openedAt + settings.lockMinutes * 60000 - Date.now();
+  if (wait <= 0) return;
+  lockTimer = setTimeout(() => {
+    idleArmed = false;
+    lockScreen();
+    setTimeout(closeOverlay, 800);
+  }, wait);
 }
 
 function closeOverlay() {
@@ -96,6 +136,7 @@ function update(patch) {
   settings = { ...settings, ...patch };
   saveSettings();
   syncSleepBlocker();
+  syncLockTimer();
   for (const w of wins) w.webContents.send('settings', settings);
   buildTrayMenu();
 }
@@ -134,6 +175,15 @@ function buildTrayMenu() {
         click: () => update({ idleMinutes: m }),
       })),
     },
+    {
+      label: 'Okuma modundan sonra ekranı kilitle',
+      submenu: LOCK_OPTIONS.map((m) => ({
+        label: m ? `${m} dakika sonra` : 'Kilitleme',
+        type: 'radio',
+        checked: settings.lockMinutes === m,
+        click: () => update({ lockMinutes: m }),
+      })),
+    },
     { type: 'separator' },
     { label: 'Çık', role: 'quit' },
   ]);
@@ -162,8 +212,10 @@ app.whenReady().then(() => {
   // Bilgisayar ayarlanan süre boyunca kullanılmazsa okuma modunu aç.
   // Mod açıkken tekrar tetiklenmez; kapatınca kullanıcı etkin olduğu için sayaç sıfırlanır.
   setInterval(() => {
-    if (wins.length || !settings.idleMinutes) return;
-    if (powerMonitor.getSystemIdleTime() >= settings.idleMinutes * 60) openOverlay();
+    const idle = powerMonitor.getSystemIdleTime();
+    if (idle < 30) idleArmed = true;
+    if (wins.length || !idleArmed || !settings.idleMinutes) return;
+    if (idle >= settings.idleMinutes * 60) openOverlay();
   }, 10000);
 
   ipcMain.on('close', closeOverlay);
