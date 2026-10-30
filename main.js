@@ -16,6 +16,8 @@ const MODES = [
   { id: 'embers', label: 'Közler' },
 ];
 const IDLE_OPTIONS = [0, 5, 10, 15, 30]; // dakika; 0 = kapalı
+const FADE_IN_MS = 1100; // perde çekilirken
+const FADE_OUT_MS = 700; // perde kalkarken
 const LOCK_INSTANT = -1;
 const LOCK_OPTIONS = [0, LOCK_INSTANT, 1, 2, 5, 10, 15, 30]; // çekildikten kaç dk sonra kilitlensin; 0 = kapalı, -1 = anında
 const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15, keepAwake: true, lockMinutes: 5 };
@@ -24,6 +26,7 @@ let wins = [];
 let blockerId = null;
 let lockTimer = null;
 let openedAt = 0;
+let closing = false;
 let idleArmed = true; // kilitten sonra kullanıcı etkinleşmeden perde tekrar çekilmesin
 let tray = null;
 let settings = { ...DEFAULTS };
@@ -41,6 +44,22 @@ function saveSettings() {
   } catch {}
 }
 
+const ease = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2); // yumuşak başla, yumuşak bitir
+
+function fadeWindow(w, from, to, ms, done) {
+  const start = Date.now();
+  w.setOpacity(from);
+  const timer = setInterval(() => {
+    if (w.isDestroyed()) return clearInterval(timer);
+    const k = Math.min(1, (Date.now() - start) / ms);
+    w.setOpacity(from + (to - from) * ease(k));
+    if (k >= 1) {
+      clearInterval(timer);
+      if (done) done();
+    }
+  }, 16);
+}
+
 function openOverlay() {
   if (wins.length) return;
   openedAt = Date.now();
@@ -50,6 +69,7 @@ function openOverlay() {
       ...display.bounds,
       frame: false,
       show: false,
+      opacity: 0,
       backgroundColor: '#000000',
       alwaysOnTop: true,
       skipTaskbar: true,
@@ -66,14 +86,16 @@ function openOverlay() {
       if (process.platform === 'darwin') w.setSimpleFullScreen(true);
       else w.setFullScreen(true);
       w.show();
+      fadeWindow(w, 0, 1, FADE_IN_MS);
       if (display.id === cursorId) w.focus();
       w.webContents.send('settings', settings);
     });
     w.on('closed', () => {
       wins = wins.filter((x) => x !== w);
+      if (!wins.length) closing = false;
       syncSleepBlocker();
       syncLockTimer();
-      closeOverlay();
+      if (wins.length) closeOverlay(); // biri kapandıysa diğer ekranlardaki de kapansın
       buildTrayMenu();
     });
     wins.push(w);
@@ -127,7 +149,14 @@ function syncLockTimer() {
 }
 
 function closeOverlay() {
-  for (const w of [...wins]) if (!w.isDestroyed()) w.close();
+  if (closing) return;
+  closing = true;
+  for (const w of [...wins]) {
+    if (w.isDestroyed()) continue;
+    fadeWindow(w, w.getOpacity(), 0, FADE_OUT_MS, () => {
+      if (!w.isDestroyed()) w.close();
+    });
+  }
 }
 
 function toggleOverlay() {
