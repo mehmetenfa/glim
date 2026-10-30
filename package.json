@@ -1,0 +1,80 @@
+{
+  "name": "glim",
+  "version": "0.1.0",
+  "description": "Glim: okurken gözü kaydırmayan, sakin ekran koruyucu (saat ve yumuşak animasyonlar)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "author": "mehmetenfa",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "^26.18.0"
+  },
+  "productName": "Glim",
+  "homepage": "https://github.com/mehmetenfa/glim",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mehmetenfa/glim.git"
+  },
+  "build": {
+    "appId": "tr.glim.app",
+    "productName": "Glim",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "build/icon.png"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "mehmetenfa",
+      "repo": "glim"
+    },
+    "artifactName": "Glim-${version}-${os}-${arch}.${ext}"
+  }
+}

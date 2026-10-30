@@ -1,0 +1,133 @@
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage } = require('electron');
+const fs = require('fs');
+const path = require('path');
+
+const SHORTCUT = 'CommandOrControl+Shift+R';
+const MODES = [
+  { id: 'clock', label: 'Saat' },
+  { id: 'breath', label: 'Nefes' },
+  { id: 'aurora', label: 'Aurora' },
+  { id: 'fireflies', label: 'Ateş böcekleri' },
+  { id: 'rain', label: 'Yağmur' },
+];
+const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85 };
+
+let wins = [];
+let tray = null;
+let settings = { ...DEFAULTS };
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+
+function loadSettings() {
+  try {
+    settings = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) };
+  } catch {}
+}
+
+function saveSettings() {
+  try {
+    fs.writeFileSync(settingsFile(), JSON.stringify(settings));
+  } catch {}
+}
+
+function openOverlay() {
+  if (wins.length) return;
+  const cursorId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
+  for (const display of screen.getAllDisplays()) {
+    const w = new BrowserWindow({
+      ...display.bounds,
+      frame: false,
+      show: false,
+      backgroundColor: '#000000',
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      enableLargerThanScreen: true,
+      hasShadow: false,
+      webPreferences: { preload: path.join(__dirname, 'preload.js') },
+    });
+    w.setAlwaysOnTop(true, 'screen-saver');
+    w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    w.loadFile('index.html');
+    w.once('ready-to-show', () => {
+      w.setBounds(display.bounds);
+      if (process.platform === 'darwin') w.setSimpleFullScreen(true);
+      else w.setFullScreen(true);
+      w.show();
+      if (display.id === cursorId) w.focus();
+      w.webContents.send('settings', settings);
+    });
+    w.on('closed', () => {
+      wins = wins.filter((x) => x !== w);
+      closeOverlay();
+      buildTrayMenu();
+    });
+    wins.push(w);
+  }
+  buildTrayMenu();
+}
+
+function closeOverlay() {
+  for (const w of [...wins]) if (!w.isDestroyed()) w.close();
+}
+
+function toggleOverlay() {
+  wins.length ? closeOverlay() : openOverlay();
+}
+
+function update(patch) {
+  settings = { ...settings, ...patch };
+  saveSettings();
+  for (const w of wins) w.webContents.send('settings', settings);
+  buildTrayMenu();
+}
+
+function buildTrayMenu() {
+  if (!tray) return;
+  const menu = Menu.buildFromTemplate([
+    { label: wins.length ? 'Okuma modunu kapat' : 'Okuma modunu aç', accelerator: SHORTCUT, click: toggleOverlay },
+    { type: 'separator' },
+    ...MODES.map((m) => ({
+      label: m.label,
+      type: 'radio',
+      checked: settings.mode === m.id,
+      click: () => update({ mode: m.id }),
+    })),
+    { type: 'separator' },
+    {
+      label: 'Animasyonun üstünde saat göster',
+      type: 'checkbox',
+      checked: settings.showClock,
+      enabled: settings.mode !== 'clock',
+      click: (item) => update({ showClock: item.checked }),
+    },
+    { type: 'separator' },
+    { label: 'Çık', role: 'quit' },
+  ]);
+  tray.setContextMenu(menu);
+}
+
+app.whenReady().then(() => {
+  if (process.platform === 'darwin') app.dock.hide();
+  loadSettings();
+  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true });
+
+  if (process.platform === 'darwin') {
+    tray = new Tray(nativeImage.createEmpty());
+    tray.setTitle('◐');
+  } else {
+    const icon = nativeImage.createFromPath(path.join(__dirname, 'build', 'icon.png')).resize({ width: 32, height: 32 });
+    tray = new Tray(icon);
+  }
+  tray.setToolTip('Glim');
+  buildTrayMenu();
+
+  if (!globalShortcut.register(SHORTCUT, toggleOverlay)) {
+    console.error(`Kısayol kaydedilemedi: ${SHORTCUT}`);
+  }
+
+  ipcMain.on('close', closeOverlay);
+  ipcMain.on('update', (_e, patch) => update(patch));
+});
+
+app.on('window-all-closed', () => {});
+app.on('will-quit', () => globalShortcut.unregisterAll());

@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Glim</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+  #clock {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    font: 200 18vmin/1 -apple-system, "SF Pro Display", sans-serif; letter-spacing: .04em;
+    color: #c9b48a; font-variant-numeric: tabular-nums; pointer-events: none;
+    transition: opacity .6s;
+  }
+  #clock.small { font-size: 7vmin; align-items: flex-end; padding-bottom: 6vmin; box-sizing: border-box; opacity: .7; }
+  #clock.hidden { opacity: 0; }
+  #hint {
+    position: fixed; left: 0; right: 0; bottom: 2.5vmin; text-align: center; color: #6f6551;
+    font: 14px -apple-system, sans-serif; transition: opacity 1s; opacity: 0; pointer-events: none;
+  }
+  #hint.show { opacity: 1; }
+  #veil { position: fixed; inset: 0; background: #000; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="clock"></div>
+<div id="veil"></div>
+<div id="hint">1–5 mod · C saat · ↑↓ parlaklık · Esc kapat</div>
+<script>
+const MODES = ['clock', 'breath', 'aurora', 'fireflies', 'rain'];
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const clockEl = document.getElementById('clock');
+const veil = document.getElementById('veil');
+const hint = document.getElementById('hint');
+let settings = { mode: 'clock', showClock: false, dim: 0.85 };
+let W = 0, H = 0, t0 = performance.now();
+let state = {};
+
+function resize() {
+  const r = window.devicePixelRatio || 1;
+  W = canvas.width = innerWidth * r;
+  H = canvas.height = innerHeight * r;
+  state = {};
+}
+addEventListener('resize', resize);
+resize();
+
+// Sıcak, düşük kontrastlı renkler: göz yormasın diye mavi ışık yok.
+const scenes = {
+  clock() { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); },
+
+  breath(t) {
+    ctx.fillStyle = '#050403'; ctx.fillRect(0, 0, W, H);
+    const k = (Math.sin(t / 2000 * Math.PI / 2) + 1) / 2; // ~8 sn'lik nefes
+    const r = Math.min(W, H) * (0.12 + 0.12 * k);
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, r * 2);
+    g.addColorStop(0, `rgba(201,150,90,${0.35 + 0.2 * k})`);
+    g.addColorStop(0.5, `rgba(150,95,55,${0.15 + 0.1 * k})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  },
+
+  aurora(t) {
+    ctx.fillStyle = '#040302'; ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    const cols = ['120,70,40', '150,100,50', '90,60,60'];
+    for (let i = 0; i < 3; i++) {
+      const x = W * (0.5 + 0.3 * Math.sin(t / 9000 + i * 2.1));
+      const y = H * (0.5 + 0.25 * Math.cos(t / 11000 + i * 1.7));
+      const r = Math.min(W, H) * 0.55;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(${cols[i]},0.30)`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  },
+
+  fireflies(t) {
+    if (!state.ff) {
+      state.ff = Array.from({ length: 40 }, () => ({
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - .5) * .25, vy: (Math.random() - .5) * .25,
+        ph: Math.random() * 6.28, sp: .0004 + Math.random() * .0006,
+        r: (2 + Math.random() * 3) * (devicePixelRatio || 1),
+      }));
+    }
+    ctx.fillStyle = 'rgba(5,4,3,0.25)'; ctx.fillRect(0, 0, W, H);
+    for (const f of state.ff) {
+      f.x = (f.x + f.vx + W) % W; f.y = (f.y + f.vy + H) % H;
+      const a = (Math.sin(t * f.sp + f.ph) + 1) / 2;
+      const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r * 6);
+      g.addColorStop(0, `rgba(220,180,110,${0.55 * a})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(f.x - f.r * 6, f.y - f.r * 6, f.r * 12, f.r * 12);
+    }
+  },
+
+  rain() {
+    const r = devicePixelRatio || 1;
+    if (!state.drops) state.drops = Array.from({ length: 90 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      l: (20 + Math.random() * 40) * r, v: (2 + Math.random() * 3) * r,
+    }));
+    ctx.fillStyle = 'rgba(5,4,3,0.35)'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(170,140,100,0.25)'; ctx.lineWidth = r;
+    ctx.beginPath();
+    for (const d of state.drops) {
+      ctx.moveTo(d.x, d.y); ctx.lineTo(d.x, d.y + d.l);
+      d.y += d.v;
+      if (d.y > H) { d.y = -d.l; d.x = Math.random() * W; }
+    }
+    ctx.stroke();
+  },
+};
+
+function tickClock() {
+  const d = new Date();
+  clockEl.textContent = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  const visible = settings.mode === 'clock' || settings.showClock;
+  clockEl.classList.toggle('hidden', !visible);
+  clockEl.classList.toggle('small', settings.mode !== 'clock');
+}
+setInterval(tickClock, 1000);
+
+function frame(now) {
+  scenes[settings.mode]?.(now - t0);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+function apply(s) {
+  if (s.mode !== settings.mode) state = {};
+  settings = s;
+  veil.style.opacity = String(1 - settings.dim);
+  tickClock();
+}
+
+okuma.onSettings(apply);
+
+let hintTimer;
+function showHint() {
+  hint.classList.add('show');
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => hint.classList.remove('show'), 3000);
+}
+showHint();
+
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') return okuma.close();
+  const n = Number(e.key);
+  if (n >= 1 && n <= MODES.length) okuma.update({ mode: MODES[n - 1] });
+  else if (e.key.toLowerCase() === 'c') okuma.update({ showClock: !settings.showClock });
+  else if (e.key === 'ArrowUp') okuma.update({ dim: Math.min(1, +(settings.dim + 0.05).toFixed(2)) });
+  else if (e.key === 'ArrowDown') okuma.update({ dim: Math.max(0.2, +(settings.dim - 0.05).toFixed(2)) });
+  showHint();
+});
+addEventListener('click', () => okuma.close());
+</script>
+</body>
+</html>
