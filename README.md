@@ -33,7 +33,7 @@ Glim menü çubuğunda (macOS) veya sistem tepsisinde (Windows) çalışır ve g
 
 | Tuş | İşlev |
 | --- | --- |
-| `Cmd/Ctrl + Shift + R` | Perdeyi çek / kaldır |
+| `Cmd/Ctrl + Option/Alt + Shift + G` | Perdeyi çek / kaldır |
 | `1`–`9` | Mod seç: saat, nefes, aurora, ateş böcekleri, yağmur, küre, yıldızlar, dalgalar, közler |
 | `C` | Animasyonun üstünde saati aç / kapat |
 | `↑` / `↓` | Parlaklık |

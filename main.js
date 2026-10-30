@@ -4,7 +4,7 @@ const fs = require('fs');
 const { execFile } = require('child_process');
 const path = require('path');
 
-const SHORTCUT = 'CommandOrControl+Shift+R';
+const SHORTCUT = 'CommandOrControl+Alt+Shift+G';
 const MODES = [
   { id: 'clock', label: 'Saat' },
   { id: 'breath', label: 'Nefes' },
