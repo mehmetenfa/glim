@@ -27,9 +27,9 @@
 <canvas id="c"></canvas>
 <div id="clock"></div>
 <div id="veil"></div>
-<div id="hint">1–5 mod · C saat · ↑↓ parlaklık · Esc kapat</div>
+<div id="hint">1–9 mod · C saat · ↑↓ parlaklık · Esc kapat</div>
 <script>
-const MODES = ['clock', 'breath', 'aurora', 'fireflies', 'rain'];
+const MODES = ['clock', 'breath', 'aurora', 'fireflies', 'rain', 'sphere', 'stars', 'waves', 'embers'];
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const clockEl = document.getElementById('clock');
@@ -50,6 +50,75 @@ resize();
 
 // Sıcak, düşük kontrastlı renkler: göz yormasın diye mavi ışık yok.
 const scenes = {
+  // Dönen nokta küresi: yüzeye dağılmış, öne yaklaştıkça büyüyüp parlaklaşan noktalar.
+  sphere(t) {
+    if (!state.sp) {
+      const N = 1500, pts = [];
+      for (let i = 0; i < N; i++) {
+        const y = 1 - 2 * (i + 0.5) / N, r = Math.sqrt(1 - y * y), th = i * 2.399963;
+        const k = Math.random() < 0.12 ? Math.cbrt(Math.random()) * 0.85 : 0.9 + Math.random() * 0.1;
+        pts.push({ x: Math.cos(th) * r * k, y: y * k, z: Math.sin(th) * r * k, s: 1 + Math.random() * 2.6, h: 24 + Math.random() * 18 });
+      }
+      state.sp = pts;
+    }
+    ctx.fillStyle = '#050403'; ctx.fillRect(0, 0, W, H);
+    const dpr = devicePixelRatio || 1, R = Math.min(W, H) * 0.3;
+    const a = t * 0.0001, ca = Math.cos(a), sa = Math.sin(a), tilt = 0.4, ct = Math.cos(tilt), st = Math.sin(tilt);
+    for (const p of state.sp) {
+      const x1 = p.x * ca + p.z * sa, z1 = -p.x * sa + p.z * ca;
+      const y2 = p.y * ct - z1 * st, z2 = p.y * st + z1 * ct;
+      const d = (z2 + 1) / 2, f = 1 + 0.18 * z2;
+      ctx.fillStyle = `hsla(${p.h},60%,${48 + 24 * d}%,${0.18 + 0.7 * d})`;
+      ctx.beginPath();
+      ctx.arc(W / 2 + x1 * R * f, H / 2 + y2 * R * f, p.s * dpr * (0.7 + 1.1 * d), 0, 6.2832);
+      ctx.fill();
+    }
+  },
+
+  stars(t) {
+    const dpr = devicePixelRatio || 1;
+    if (!state.st) state.st = Array.from({ length: 320 }, () => ({
+      x: Math.random() * W, y: Math.random() * H, z: 0.2 + Math.random() * 0.8, ph: Math.random() * 6.28,
+    }));
+    ctx.fillStyle = '#040302'; ctx.fillRect(0, 0, W, H);
+    for (const s of state.st) {
+      s.x -= s.z * 0.12 * dpr; if (s.x < 0) s.x += W;
+      const tw = 0.5 + 0.5 * (Math.sin(t * 0.0008 * s.z + s.ph) + 1) / 2;
+      ctx.fillStyle = `rgba(225,195,150,${tw * s.z})`;
+      ctx.beginPath(); ctx.arc(s.x, s.y, (0.8 + s.z * 1.9) * dpr, 0, 6.2832); ctx.fill();
+    }
+  },
+
+  waves(t) {
+    ctx.fillStyle = '#050403'; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = `rgba(${150 - i * 10},${95 - i * 6},${50 - i * 3},0.10)`;
+      ctx.beginPath(); ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 10) {
+        const y = H * (0.45 + 0.08 * i) + Math.sin(x / W * (3 + i) + t / (4500 + i * 1100) + i) * H * (0.035 + 0.01 * i);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+    }
+  },
+
+  embers(t) {
+    const dpr = devicePixelRatio || 1;
+    if (!state.em) state.em = Array.from({ length: 70 }, () => ({
+      x: Math.random() * W, y: Math.random() * H, v: (0.15 + Math.random() * 0.4) * dpr,
+      ph: Math.random() * 6.28, r: (1 + Math.random() * 2.2) * dpr,
+    }));
+    ctx.fillStyle = '#050403'; ctx.fillRect(0, 0, W, H);
+    for (const e of state.em) {
+      e.y -= e.v; e.x += Math.sin(t * 0.0007 + e.ph) * 0.35 * dpr;
+      if (e.y < -20) { e.y = H + 20; e.x = Math.random() * W; }
+      const a = Math.max(0, e.y / H) * 0.7;
+      const g = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r * 5);
+      g.addColorStop(0, `rgba(230,150,80,${a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(e.x - e.r * 5, e.y - e.r * 5, e.r * 10, e.r * 10);
+    }
+  },
+
   clock() { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); },
 
   breath(t) {

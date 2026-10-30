@@ -9,6 +9,10 @@ const MODES = [
   { id: 'aurora', label: 'Aurora' },
   { id: 'fireflies', label: 'Ateş böcekleri' },
   { id: 'rain', label: 'Yağmur' },
+  { id: 'sphere', label: 'Küre' },
+  { id: 'stars', label: 'Yıldızlar' },
+  { id: 'waves', label: 'Dalgalar' },
+  { id: 'embers', label: 'Közler' },
 ];
 const IDLE_OPTIONS = [0, 5, 10, 15, 30]; // dakika; 0 = kapalı
 const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15, keepAwake: true };

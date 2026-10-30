@@ -34,7 +34,7 @@ Glim menü çubuğunda (macOS) veya sistem tepsisinde (Windows) çalışır ve g
 | Tuş | İşlev |
 | --- | --- |
 | `Cmd/Ctrl + Shift + R` | Okuma modunu aç / kapat |
-| `1`–`5` | Mod seç: saat, nefes, aurora, ateş böcekleri, yağmur |
+| `1`–`9` | Mod seç: saat, nefes, aurora, ateş böcekleri, yağmur, küre, yıldızlar, dalgalar, közler |
 | `C` | Animasyonun üstünde saati aç / kapat |
 | `↑` / `↓` | Parlaklık |
 | `Esc` veya tıklama | Kapat |
