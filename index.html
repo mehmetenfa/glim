@@ -27,6 +27,7 @@
     font: 14px -apple-system, sans-serif; opacity: 0; transition: opacity 1s; pointer-events: none;
   }
   body.locked #lockhint { opacity: .8; }
+  body.locked { cursor: default; }
   body.locked #hint { display: none; }
   #unlock {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -253,6 +254,10 @@ const unlockEl = document.getElementById('unlock');
 const pw = document.getElementById('pw');
 const msg = document.getElementById('msg');
 let locked = false, prompting = false;
+
+glim.onPromptUnlock(() => {
+  if (locked) startUnlock();
+});
 
 glim.onLocked((v) => {
   locked = v;

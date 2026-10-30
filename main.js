@@ -32,6 +32,7 @@ let blockerId = null;
 let lockTimer = null;
 let openedAt = 0;
 let closing = false;
+let closingAt = 0;
 let curtainLocked = false;
 let failedTries = 0;
 let lockedOutUntil = 0;
@@ -188,16 +189,24 @@ function syncLockTimer() {
 }
 
 function closeOverlay() {
-  if (closing) return;
+  if (!wins.length) return;
+  if (closing && Date.now() - closingAt < 3000) return; // kapanış sürüyor; takılırsa 3 sn sonra yeniden denenebilir
   closing = true;
+  closingAt = Date.now();
   for (const w of [...wins]) {
     if (w.isDestroyed()) continue;
-    fadeWindow(w, w.getOpacity(), 0, FADE_OUT_MS, () => {
-      if (w.isDestroyed()) return;
-      if (w.isKiosk()) w.setKiosk(false); // Dock / menü çubuğu / uygulama değiştirme kısıtlarını geri ver
-      w.close();
-    });
+    fadeWindow(w, w.getOpacity(), 0, FADE_OUT_MS, () => destroyOverlayWindow(w));
+    // Her ne olursa olsun pencere kapanmazsa görünmez bir pencere ekranda kalmasın.
+    setTimeout(() => destroyOverlayWindow(w), FADE_OUT_MS + 1500);
   }
+}
+
+function destroyOverlayWindow(w) {
+  if (w.isDestroyed()) return;
+  try {
+    if (w.isKiosk()) w.setKiosk(false); // Dock / menü çubuğu / uygulama değiştirme kısıtlarını geri ver
+  } catch {}
+  w.destroy();
 }
 
 // Perde kilidi: perde oynamaya devam eder, kaldırmak için Touch ID / Mac şifresi gerekir.
@@ -257,7 +266,12 @@ async function tryPassword(password) {
 }
 
 function toggleOverlay() {
-  if (curtainLocked) return; // kilitliyken kısayol perdeyi kaldıramaz
+  if (curtainLocked) {
+    // Kilitliyken kısayol / menü perdeyi doğrudan kaldıramaz; kimlik doğrulamayı başlat.
+    const w = BrowserWindow.getFocusedWindow() || wins[0];
+    if (w && !w.isDestroyed()) w.webContents.send('prompt-unlock');
+    return;
+  }
   wins.length ? closeOverlay() : openOverlay();
 }
 

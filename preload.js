@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('glim', {
   close: () => ipcRenderer.send('close'),
   update: (patch) => ipcRenderer.send('update', patch),
   onLocked: (cb) => ipcRenderer.on('locked', (_e, v) => cb(v)),
+  onPromptUnlock: (cb) => ipcRenderer.on('prompt-unlock', () => cb()),
   requestUnlock: () => ipcRenderer.invoke('unlock-request'),
   unlockPassword: (pw) => ipcRenderer.invoke('unlock-password', pw),
 });
