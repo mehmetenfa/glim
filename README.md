@@ -40,7 +40,9 @@ Glim menü çubuğunda (macOS) veya sistem tepsisinde (Windows) çalışır ve g
 | `Esc` veya tıklama | Perdeyi kaldır |
 
 - Bilgisayar 15 dakika kullanılmazsa perde kendiliğinden çekilir (menüden 5/10/30 dakikaya ya da kapalıya alınabilir).
-- Perde çekildikten sonra ekran kilitlenebilir: anında, 1/2/5/10/15/30 dakika sonra ya da hiç (varsayılan 5 dakika).
+- Perde çekildikten sonra ekran kilitlenebilir: anında, 1/2/5/10/15/30 dakika sonra ya da hiç (varsayılan 5 dakika). Kilit türü menüden seçilir:
+  - **macOS kilit ekranı:** Sistemin kendi kilidi. Perde kalkar, kilit ekranı gelir (perde kilit ekranında oynayamaz).
+  - **Perde kilidi (yalnızca macOS):** Perde oynamaya devam eder; kaldırmak için Touch ID ya da Mac şifresi gerekir. Dock, menü çubuğu, uygulama değiştirme ve zorla kapatma perde kilitliyken engellenir. Bu gerçek bir sistem kilidi değildir: evdeki meraklara karşı yeterlidir, bilgisayarı ele geçirmek isteyen biri için yeterli değildir. Touch ID penceresi açıkken Dock ve menü çubuğu kısa süre görünür.
 - Perde çekiliyken bilgisayar uykuya geçmez (menüden kapatılabilir).
 
 Renkler sıcak ve düşük kontrastlıdır, mavi ışık kullanılmaz. Birden fazla monitörde hepsini birlikte kaplar.

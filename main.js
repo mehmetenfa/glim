@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage, powerMonitor, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeImage, powerMonitor, powerSaveBlocker, systemPreferences } = require('electron');
+const os = require('os');
 const fs = require('fs');
 const { execFile } = require('child_process');
 const path = require('path');
@@ -21,13 +22,19 @@ const FADE_OUT_MS = 700; // perde kalkarken
 const AWAKE_AFTER_LOCK_MAX_MS = 60 * 60 * 1000; // kilitten sonra en fazla 1 saat uyanık tut
 const LOCK_INSTANT = -1;
 const LOCK_OPTIONS = [0, LOCK_INSTANT, 1, 2, 5, 10, 15, 30]; // çekildikten kaç dk sonra kilitlensin; 0 = kapalı, -1 = anında
-const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15, keepAwake: true, lockMinutes: 5 };
+const DEFAULTS = { mode: 'clock', showClock: false, dim: 0.85, idleMinutes: 15, keepAwake: true, lockMinutes: 5, lockType: 'system' };
+// lockType: 'system' = macOS kilit ekranı, 'curtain' = perde oynamaya devam eder, Touch ID / şifre ile kalkar (yalnızca macOS)
+const MAX_PASSWORD_TRIES = 5;
+const PASSWORD_LOCKOUT_MS = 30000;
 
 let wins = [];
 let blockerId = null;
 let lockTimer = null;
 let openedAt = 0;
 let closing = false;
+let curtainLocked = false;
+let failedTries = 0;
+let lockedOutUntil = 0;
 let awakeAfterLock = false;
 let awakeTimer = null;
 let idleArmed = true; // kilitten sonra kullanıcı etkinleşmeden perde tekrar çekilmesin
@@ -95,7 +102,10 @@ function openOverlay() {
     });
     w.on('closed', () => {
       wins = wins.filter((x) => x !== w);
-      if (!wins.length) closing = false;
+      if (!wins.length) {
+        closing = false;
+        curtainLocked = false;
+      }
       syncSleepBlocker();
       syncLockTimer();
       if (wins.length) closeOverlay(); // biri kapandıysa diğer ekranlardaki de kapansın
@@ -165,12 +175,13 @@ function lockScreen() {
 function syncLockTimer() {
   clearTimeout(lockTimer);
   lockTimer = null;
-  if (!wins.length || !settings.lockMinutes) return;
+  if (!wins.length || !settings.lockMinutes || curtainLocked || closing) return;
   // Anında: ekran bir an belirsin diye kısa bir gecikmeyle kilitle.
   const wait = settings.lockMinutes === LOCK_INSTANT ? 600 : openedAt + settings.lockMinutes * 60000 - Date.now();
   if (wait <= 0) return;
   lockTimer = setTimeout(() => {
     idleArmed = false;
+    if (settings.lockType === 'curtain' && process.platform === 'darwin') return lockCurtain();
     lockScreen();
     setTimeout(closeOverlay, 800);
   }, wait);
@@ -182,12 +193,71 @@ function closeOverlay() {
   for (const w of [...wins]) {
     if (w.isDestroyed()) continue;
     fadeWindow(w, w.getOpacity(), 0, FADE_OUT_MS, () => {
-      if (!w.isDestroyed()) w.close();
+      if (w.isDestroyed()) return;
+      if (w.isKiosk()) w.setKiosk(false); // Dock / menü çubuğu / uygulama değiştirme kısıtlarını geri ver
+      w.close();
     });
   }
 }
 
+// Perde kilidi: perde oynamaya devam eder, kaldırmak için Touch ID / Mac şifresi gerekir.
+// Kiosk kipi Dock, menü çubuğu, uygulama değiştirme ve zorla kapatmayı engeller.
+function lockCurtain() {
+  if (!wins.length || curtainLocked || closing) return;
+  curtainLocked = true;
+  failedTries = 0;
+  const target = BrowserWindow.getFocusedWindow() || wins[0];
+  target.setKiosk(true);
+  target.focus();
+  for (const w of wins) w.webContents.send('locked', true);
+  logLock('perde kilitlendi');
+}
+
+function unlockCurtain() {
+  curtainLocked = false;
+  for (const w of wins) if (!w.isDestroyed()) w.webContents.send('locked', false);
+  closeOverlay();
+  logLock('perde kilidi açıldı');
+}
+
+async function requestUnlock() {
+  if (!curtainLocked) return { ok: true };
+  if (systemPreferences.canPromptTouchID()) {
+    try {
+      await systemPreferences.promptTouchID('Perdeyi kaldırmak için kimliğini doğrula');
+      unlockCurtain();
+      return { ok: true };
+    } catch {
+      // iptal edildi ya da tanınmadı: şifre ile devam
+    }
+  }
+  return { needPassword: true };
+}
+
+function verifyPassword(password) {
+  return new Promise((resolve) => {
+    execFile('dscl', ['.', '-authonly', os.userInfo().username, password], (err) => resolve(!err));
+  });
+}
+
+async function tryPassword(password) {
+  if (!curtainLocked) return { ok: true };
+  const now = Date.now();
+  if (now < lockedOutUntil) return { ok: false, wait: Math.ceil((lockedOutUntil - now) / 1000) };
+  if (typeof password === 'string' && password && (await verifyPassword(password))) {
+    unlockCurtain();
+    return { ok: true };
+  }
+  if (++failedTries >= MAX_PASSWORD_TRIES) {
+    failedTries = 0;
+    lockedOutUntil = Date.now() + PASSWORD_LOCKOUT_MS;
+    return { ok: false, wait: PASSWORD_LOCKOUT_MS / 1000 };
+  }
+  return { ok: false };
+}
+
 function toggleOverlay() {
+  if (curtainLocked) return; // kilitliyken kısayol perdeyi kaldıramaz
   wins.length ? closeOverlay() : openOverlay();
 }
 
@@ -234,6 +304,22 @@ function buildTrayMenu() {
         click: () => update({ idleMinutes: m }),
       })),
     },
+    ...(process.platform === 'darwin'
+      ? [
+          {
+            label: 'Kilit türü',
+            submenu: [
+              { id: 'system', label: 'macOS kilit ekranı' },
+              { id: 'curtain', label: 'Perde kilidi (perde oynar, Touch ID / şifre ile kalkar)' },
+            ].map((t) => ({
+              label: t.label,
+              type: 'radio',
+              checked: settings.lockType === t.id,
+              click: () => update({ lockType: t.id }),
+            })),
+          },
+        ]
+      : []),
     {
       label: 'Perde çekildikten sonra ekranı kilitle',
       submenu: LOCK_OPTIONS.map((m) => ({
@@ -279,7 +365,11 @@ app.whenReady().then(() => {
 
   powerMonitor.on('unlock-screen', releaseAwakeAfterLock);
 
-  ipcMain.on('close', closeOverlay);
+  ipcMain.on('close', () => {
+    if (!curtainLocked) closeOverlay();
+  });
+  ipcMain.handle('unlock-request', requestUnlock);
+  ipcMain.handle('unlock-password', (_e, password) => tryPassword(password));
   ipcMain.on('update', (_e, patch) => update(patch));
 });
 

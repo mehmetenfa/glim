@@ -22,12 +22,41 @@
   }
   #hint.show { opacity: 1; }
   #veil { position: fixed; inset: 0; background: #000; pointer-events: none; }
+  #lockhint {
+    position: fixed; left: 0; right: 0; bottom: 2.5vmin; text-align: center; color: #6f6551;
+    font: 14px -apple-system, sans-serif; opacity: 0; transition: opacity 1s; pointer-events: none;
+  }
+  body.locked #lockhint { opacity: .8; }
+  body.locked #hint { display: none; }
+  #unlock {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.55); backdrop-filter: blur(6px);
+  }
+  #unlock[hidden] { display: none; }
+  #unlock .box { display: flex; flex-direction: column; align-items: center; gap: 14px; font-family: -apple-system, sans-serif; }
+  #unlock .title { color: #c9b48a; font-size: 18px; font-weight: 300; letter-spacing: .08em; }
+  #pw {
+    width: 260px; padding: 10px 14px; border-radius: 10px; border: 1px solid #5a4a30; outline: none;
+    background: rgba(20,15,10,.8); color: #e3d3b0; font-size: 16px; text-align: center; letter-spacing: .2em;
+  }
+  #pw:focus { border-color: #a8864f; }
+  #msg { min-height: 18px; color: #b0805a; font-size: 13px; }
+  #unlock.shake .box { animation: shake .35s; }
+  @keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="clock"></div>
 <div id="veil"></div>
+<div id="lockhint">Kilitli · dokun ya da bir tuşa bas</div>
+<div id="unlock" hidden>
+  <div class="box">
+    <div class="title">Perde kilitli</div>
+    <input id="pw" type="password" placeholder="Mac şifresi" autocomplete="off" spellcheck="false">
+    <div id="msg"></div>
+  </div>
+</div>
 <div id="hint">1–9 mod · C saat · ↑↓ parlaklık · Esc perdeyi kaldır</div>
 <script>
 const MODES = ['clock', 'breath', 'aurora', 'fireflies', 'rain', 'sphere', 'stars', 'waves', 'embers'];
@@ -219,7 +248,58 @@ function showHint() {
 }
 showHint();
 
+// --- Perde kilidi ---
+const unlockEl = document.getElementById('unlock');
+const pw = document.getElementById('pw');
+const msg = document.getElementById('msg');
+let locked = false, prompting = false;
+
+glim.onLocked((v) => {
+  locked = v;
+  document.body.classList.toggle('locked', v);
+  if (!v) hideUnlock();
+});
+
+async function startUnlock() {
+  if (prompting) return;
+  prompting = true;
+  const r = await glim.requestUnlock(); // önce Touch ID; başarılıysa pencere kapanır
+  if (r && r.needPassword) showPassword();
+  else if (!r || !r.ok) prompting = false;
+}
+
+function showPassword() {
+  unlockEl.hidden = false;
+  document.body.style.cursor = 'default';
+  pw.value = '';
+  msg.textContent = '';
+  pw.focus();
+}
+
+function hideUnlock() {
+  unlockEl.hidden = true;
+  document.body.style.cursor = '';
+  prompting = false;
+}
+
+pw.addEventListener('keydown', async (e) => {
+  e.stopPropagation();
+  if (e.key === 'Escape') return hideUnlock();
+  if (e.key !== 'Enter') return;
+  const r = await glim.unlockPassword(pw.value);
+  pw.value = '';
+  if (r && r.ok) return;
+  msg.textContent = r && r.wait ? `Çok fazla deneme. ${r.wait} sn bekle` : 'Şifre yanlış';
+  unlockEl.classList.remove('shake');
+  void unlockEl.offsetWidth;
+  unlockEl.classList.add('shake');
+});
+
 addEventListener('keydown', (e) => {
+  if (locked) {
+    if (!['Shift', 'Meta', 'Control', 'Alt', 'CapsLock', 'Fn'].includes(e.key)) startUnlock();
+    return;
+  }
   if (e.key === 'Escape') return glim.close();
   const n = Number(e.key);
   if (n >= 1 && n <= MODES.length) glim.update({ mode: MODES[n - 1] });
@@ -228,7 +308,7 @@ addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowDown') glim.update({ dim: Math.max(0.2, +(settings.dim - 0.05).toFixed(2)) });
   showHint();
 });
-addEventListener('click', () => glim.close());
+addEventListener('click', () => (locked ? startUnlock() : glim.close()));
 </script>
 </body>
 </html>
